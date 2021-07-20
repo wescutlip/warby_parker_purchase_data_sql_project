@@ -1,0 +1,71 @@
+-- Inspecting survey data
+SELECT *
+FROM survey
+LIMIT 10;
+
+-- Identifying major drop off points in survey
+SELECT question, COUNT(DISTINCT user_id)
+FROM survey
+GROUP BY question;
+-- Questions 2 and 4 have a 0.95 conversion rate
+-- Question 3 has a 0.8 conversion rate
+--   People may feel a lack of confidence in their sense of style/what's popular
+-- Question 5 has a 0.75 conversion rate
+--   People may feel uncomfortable sharing this information or be embarassed at the length of time since their last eye exam
+
+-- Examining purchase funnel tables
+SELECT *
+FROM quiz
+LIMIT 5;
+
+SELECT *
+FROM home_try_on
+LIMIT 5;
+
+SELECT *
+FROM purchase
+LIMIT 5;
+
+-- Building query to calculate purchase funnel metrics
+WITH funnel AS(
+  SELECT DISTINCT q.user_id, 
+    h.user_id IS NOT NULL AS "is_home_try_on", 
+    h.number_of_pairs, 
+    p.user_id IS NOT NULL AS "is_purchase"
+  FROM quiz AS "q"
+  LEFT JOIN home_try_on AS "h"
+    ON h.user_id = q.user_id
+  LEFT JOIN purchase AS "p"
+    ON p.user_id = q.user_id)
+SELECT COUNT(*) AS "num_quiz",
+  SUM(is_home_try_on) AS "num_home_try_on",
+  SUM(is_purchase) AS "num_purchase",
+  1.0 * SUM(is_home_try_on) / COUNT(*) 
+    AS "% from 1 to 2",
+-- There is an overall 0.75 conversion rate from quiz to home try on   
+  1.0 * SUM(is_purchase) / SUM(is_home_try_on) 
+    AS "% from 2 to 3",
+-- There is an overall 0.66 conversion rate from home try on to purchase    
+  COUNT(DISTINCT CASE
+    WHEN number_of_pairs = "3 pairs" THEN user_id
+    END) AS "three_pairs",
+  SUM(CASE
+    WHEN number_of_pairs = "3 pairs" THEN is_purchase
+    END) AS "three_buy",
+-- three pair try on results in approximately a 
+-- 0.53 purchase rate  
+  COUNT(DISTINCT CASE
+    WHEN number_of_pairs = "5 pairs" THEN user_id
+    END) AS "five_pairs",
+  SUM(CASE
+    WHEN number_of_pairs = "5 pairs" THEN is_purchase
+    END) AS "five_buy"
+-- five pair try on results in approximately a 
+-- 0.79 purchase rate  
+FROM funnel;
+
+-- Common models purchased
+SELECT model_name, COUNT(model_name), style
+FROM purchase
+GROUP BY 1
+ORDER BY 2 DESC;
